@@ -492,7 +492,7 @@ git push origin feature/my-feature
 
 # License
 
-MIT License
+Apache-2.0 License
 
 ---
 
@@ -516,4 +516,4 @@ Special thanks to the open-source community.
 
 ---
 
-**Made with ❤️ by [Aryan Gupta](https://github.com/Aryan27-max)**
+# **Made with ❤️ by [Aryan Gupta](https://github.com/Aryan27-max)**
