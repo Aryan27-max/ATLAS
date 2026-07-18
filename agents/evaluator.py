@@ -9,6 +9,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 import orjson
 from pydantic import ValidationError
@@ -82,7 +83,16 @@ class CandidateEvaluator:
             raise ProfileParseError(str(exc)) from exc
         text = extraction.text
         excerpt = text[: self.config.max_resume_excerpt_chars]
-        links = self.link_extractor.extract(text)[: self.config.max_links_per_resume]
+        visible_links = self.link_extractor.extract(text)
+        annotation_links = self.link_extractor.extract_pdf_annotations(pdf_path)
+        links = self.link_extractor.merge(visible_links, annotation_links)[: self.config.max_links_per_resume]
+        self.logger.info(
+            "Link extraction for %s | visible=%s | annotations=%s | final=%s",
+            pdf_path.name,
+            len(visible_links),
+            len(annotation_links),
+            len(links),
+        )
         social_links = self._classify_links(links)
         source_summaries, source_timings = self._scrape_links(social_links)
         deterministic_context = self._deterministic_analysis(text, social_links, source_summaries)
@@ -259,16 +269,35 @@ class CandidateEvaluator:
         portfolio = ""
         others: list[str] = []
         for link in links:
-            lower = link.lower()
-            if not github and "github.com" in lower:
+            host = self._url_host(link)
+            if not github and "github.com" in host:
                 github = link
-            elif not linkedin and "linkedin.com" in lower:
+            elif not linkedin and "linkedin.com" in host:
                 linkedin = link
-            elif not portfolio:
+            elif not portfolio and self._looks_like_portfolio_site(host):
                 portfolio = link
             else:
                 others.append(link)
-        return SocialLinks(github_url=github, linkedin_url=linkedin, portfolio_url=portfolio, other_urls=others)
+        return SocialLinks(all_urls=links, github_url=github, linkedin_url=linkedin, portfolio_url=portfolio, other_urls=others)
+
+    def _url_host(self, url: str) -> str:
+        parsed = urlparse(url)
+        return parsed.netloc.lower()
+
+    def _looks_like_portfolio_site(self, host: str) -> bool:
+        if not host:
+            return False
+        platform_hosts = (
+            "leetcode.com",
+            "codeforces.com",
+            "hackerrank.com",
+            "geeksforgeeks.org",
+            "medium.com",
+            "dev.to",
+            "kaggle.com",
+            "behance.net",
+        )
+        return not any(platform in host for platform in platform_hosts)
 
     def _scrape_links(self, links: SocialLinks) -> tuple[dict[str, str], dict[str, float]]:
         summaries: dict[str, str] = {}

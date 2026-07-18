@@ -15,6 +15,7 @@ class SocialLinks(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    all_urls: list[str] = Field(default_factory=list)
     github_url: str = ""
     linkedin_url: str = ""
     portfolio_url: str = ""
